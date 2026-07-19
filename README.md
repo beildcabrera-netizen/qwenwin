@@ -1,75 +1,160 @@
-# 🏊 Academia de Natación - Plataforma de Gestión
+# 🏊‍♂️ Sistema de Gestión - Academia de Natación
 
-Sistema completo para gestionar una academia de natación con control de acceso, pagos, asistencia y reportes.
+Plataforma web profesional para gestionar la operación completa de una Academia de Natación.
 
-## 📁 Estructura del Proyecto
+## 📋 Descripción del Proyecto
 
-```
-miapp/
-├── backend/                 # NestJS API
-│   ├── prisma/              # Schema y migraciones
-│   └── src/modules/         # Módulos: IAM, Auth, Academy, Turn, Access-Control, Dashboard, Settings
-├── frontend/                # React + Vite
-├── docker-compose.yml       # PostgreSQL, Redis, Backend, Frontend
-└── README.md
-```
+El sistema maneja:
+- ✅ Alumnos, inscripciones, grupos y planes
+- ✅ Asistencia con control de horario y lector de código de barras
+- ✅ Pagos con descuentos automáticos por antigüedad
+- ✅ Profesores y personal con registro de asistencia
+- ✅ Horarios variables por bloque
+- ✅ Congelaciones, cambios y costos operativos
+- ✅ Apertura/cierre de turno
+- ✅ Reportes académicos y financieros
+- ✅ Sistema de usuarios y roles escalable
+- ✅ Dashboard con indicadores clave (KPIs)
+- ✅ Módulo de fidelización con WhatsApp
 
-## 🚀 Inicio Rápido con Docker
+## 🚀 Fases del Proyecto
+
+### FASE 1: Infraestructura ✅ (COMPLETADA)
+- [x] Estructura de directorios monorepo
+- [x] Backend NestJS configurado
+- [x] Frontend React + Vite configurado
+- [x] Docker Compose (PostgreSQL + Redis)
+- [x] Schema Prisma completo
+- [x] Configuración de entorno
+
+### FASE 2: Módulo IAM (Identity & Access Management)
+- [ ] Entidades: User, Role, Permission
+- [ ] Roles dinámicos y permisos granulares
+- [ ] Autenticación JWT
+- [ ] Políticas de asistencia por rol
+
+### FASE 3: Módulo Academia - Core
+- [ ] Alumnos, Planes, Grupos, Inscripciones
+- [ ] Validación de horarios y cupos
+- [ ] Ficha completa del alumno
+
+### FASE 4: Módulo Academia - Operaciones
+- [ ] Asistencia con validación horaria
+- [ ] Pagos con descuento por antigüedad
+- [ ] Congelaciones y cambios
+- [ ] Turnos y costos operativos
+- [ ] Liquidaciones de personal
+
+### FASE 5: Sistema de Eventos y Acceso
+- [ ] BarcodeProvider (listener global)
+- [ ] Endpoint /access/scan unificado
+- [ ] Registro manual fallback
+- [ ] Sonidos y toasts
+
+### FASE 6: Dashboard y Reportes
+- [ ] Widgets de KPIs
+- [ ] Cumpleaños (día/semana)
+- [ ] Morosos y próximos a vencer
+- [ ] Reportes exportables
+- [ ] Configuración de mensajes
+
+## 🛠️ Stack Tecnológico
+
+**Backend:**
+- NestJS 10+ (TypeScript)
+- Prisma ORM
+- PostgreSQL 15
+- Redis 7
+- JWT, Passport
+- BullMQ (colas)
+- Socket.io (tiempo real)
+
+**Frontend:**
+- React 18 + TypeScript
+- Vite
+- TanStack Query + Table
+- Zustand (estado)
+- TailwindCSS + Radix UI
+- Recharts (gráficos)
+
+## 📦 Instalación y Ejecución
+
+### 1. Clonar y preparar entorno
 
 ```bash
-cd miapp
+cd /workspace
+```
+
+### 2. Levantar infraestructura (Docker)
+
+```bash
 docker-compose up -d
 ```
 
-**Acceso:**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
-- **Admin por defecto:** CI `0000000`, Password `admin123`
+Esto iniciará:
+- PostgreSQL en `localhost:5432`
+- Redis en `localhost:6379`
 
-## 📋 Características Implementadas
-
-### ✅ Módulo Academy
-- **Planes y Grupos:** CRUD completo con control de cupo y horarios
-- **Inscripciones:** Wizard en 4 pasos con validaciones
-- **Descuentos por antigüedad:** 5% (6 meses), 10% (1 año), 15% (2+ años)
-- **Cambios:** Grupo y plan con prorrateo automático
-- **Congelaciones:** Pausa de inscripción con aprobación de admin
-- **Reactivación:** Recuperación con días restantes
-
-### ✅ Módulo Turno (Caja)
-- **Apertura/Cierre:** Con monto inicial y arqueo final
-- **Pagos:** Registro con descuento automático por antigüedad
-- **Movimientos:** Retiros y gastos con validación de fondo
-- **Discrepancias:** Cálculo automático en cierre
-- **Estadísticas:** Reportes mensuales
-
-### ✅ Control de Acceso
-- **Barcode Scanner:** Evento global sin interrumpir flujo
-- **Validación de horario:** Alumnos solo en su ventana de clase
-- **Registro manual:** Opción si olvida tarjeta
-- **Políticas configurables:** Tardanza, horas extra, mínimos
-
-### ✅ IAM (Usuarios y Roles)
-- **Roles dinámicos:** Admin crea sin límite
-- **Permisos granulares:** Por módulo y acción
-- **Tipos de pago:** Hora/día/semana/mes/fijo configurable por usuario
-
-## 🔧 Desarrollo Local
+### 3. Configurar Backend
 
 ```bash
-# Backend
-cd backend
-npm install
+cd apps/backend
 cp .env.example .env
+npm install
 npx prisma migrate dev
 npm run start:dev
+```
 
-# Frontend
-cd frontend
+El backend correrá en `http://localhost:3000`
+
+### 4. Configurar Frontend
+
+```bash
+cd apps/frontend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-## 📞 Soporte
+El frontend correrá en `http://localhost:5173`
 
-Para más información, contactar al administrador del sistema.
+## 📁 Estructura del Proyecto
+
+```
+/workspace
+├── apps/
+│   ├── backend/          # API NestJS
+│   └── frontend/         # App React
+├── packages/             # Paquetes compartidos
+├── docker/               # Configuración Docker
+├── docs/                 # Documentación
+├── scripts/              # Scripts utilitarios
+├── docker-compose.yml
+└── PROJECT_STRUCTURE.md  # Documentación detallada
+```
+
+## 🔐 Principios de Diseño
+
+1. **ACID** - Transacciones atómicas para pagos
+2. **SOLID** - Código mantenible
+3. **DDD** - Contextos delimitados (IAM, Academy, Access)
+4. **CQRS** - Dashboard como read model
+5. **Event-Driven** - Escaneo como evento global
+6. **Repository Pattern** - Abstracción de datos
+7. **Strategy Pattern** - Políticas intercambiables
+
+## 📝 Notas Importantes
+
+- ❌ **No commitar `node_modules`** - Pesan mucho
+- ✅ **Soft Delete** - Todas las entidades tienen `deleted_at`
+- 🕐 **Timezone** - Todo en UTC, conversión en frontend
+- 🔍 **Auditoría** - `created_by` y `updated_by` automáticos
+- 🔄 **Idempotencia** - Claves únicas para evitar dobles cobros
+
+## 📄 Licencia
+
+MIT
+
+---
+
+**Documentación completa:** Ver `PROJECT_STRUCTURE.md`

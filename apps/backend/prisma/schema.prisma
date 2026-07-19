@@ -1,0 +1,631 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CONTEXT: IAM (Identity & Access Management)
+// ============================================
+
+model User {
+  id                String    @id @default(uuid())
+  ci                String    @unique // Cédula de Identidad
+  firstName         String
+  lastName          String
+  email             String?   @unique
+  phone             String?
+  password          String
+  barcode           String    @unique // CI o código único
+  avatar            String?
+  
+  // Estado
+  isActive          Boolean   @default(true)
+  hasSystemAccess   Boolean   @default(false) // Puede acceder al sistema
+  hasAttendance     Boolean   @default(false) // Registra asistencia
+  
+  // Configuración de pago (para personal/profesores)
+  paymentType       PaymentType @default(NONE) // NONE, HOURLY, DAILY, WEEKLY, BIWEEKLY, MONTHLY
+  paymentBase       PaymentBase @default(ATTENDANCE_HOURS) // ATTENDANCE_HOURS o FIXED_AMOUNT
+  hourlyRate        Decimal?  @db.Decimal(10, 2)
+  fixedAmount       Decimal?  @db.Decimal(10, 2)
+  
+  // Relaciones
+  roles             UserRole[]
+  attendanceLogs    AttendanceLog[]
+  workBlocks        WorkBlock[]
+  paymentConfigs    UserPaymentConfig?
+  
+  // Auditoría
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@index([barcode])
+  @@index([ci])
+  @@index([isActive])
+}
+
+enum PaymentType {
+  NONE
+  HOURLY
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum PaymentBase {
+  ATTENDANCE_HOURS
+  FIXED_AMOUNT
+  MIXED
+}
+
+model Role {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  accessToSystem  Boolean  @default(false)
+  hasAttendance   Boolean  @default(false)
+  
+  // Relaciones
+  users           UserRole[]
+  permissions     RolePermission[]
+  policy          AttendancePolicy?
+  
+  // Auditoría
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  module      String   // academy, store, dashboard, settings, etc.
+  action      String   // create, read, update, delete, export
+  description String?
+  
+  roles       RolePermission[]
+  
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+  
+  @@unique([module, action])
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  assignedBy String
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  grantedBy    String
+  
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime @default(now())
+  
+  @@id([roleId, permissionId])
+}
+
+model AttendancePolicy {
+  id                    String   @id @default(uuid())
+  roleId                String   @unique
+  role                  Role     @relation(fields: [roleId], references: [id])
+  
+  // Configuración de tardanza
+  lateArrivalPenalty    LatePenalty @default(NONE) // NONE, PRORATE, BLOCK
+  graceMinutes          Int      @default(0) // Minutos de gracia
+  
+  // Configuración de salida anticipada
+  earlyDeparturePenalty EarlyPenalty @default(NONE) // NONE, PRORATE, BLOCK
+  
+  // Horas extra
+  overtimePolicy        OvertimePolicy @default(NONE) // NONE, PER_BLOCK, PER_HOUR, FULL_PAY
+  overtimeLimit         Int? // Límite de horas extra (null = ilimitado)
+  
+  // Mínimos
+  minimumHoursToPay     Decimal  @default(0) @db.Decimal(5, 2)
+  
+  // Auto-cierre
+  autoCloseBlock        Boolean  @default(false)
+  autoCloseTime         Int? // Minutos después del fin del bloque
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+enum LatePenalty {
+  NONE
+  PRORATE
+  BLOCK
+}
+
+enum EarlyPenalty {
+  NONE
+  PRORATE
+  BLOCK
+}
+
+enum OvertimePolicy {
+  NONE
+  PER_BLOCK
+  PER_HOUR
+  FULL_PAY
+}
+
+model UserPaymentConfig {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  
+  // Override de configuración global del usuario
+  paymentType     PaymentType?
+  paymentBase     PaymentBase?
+  hourlyRate      Decimal? @db.Decimal(10, 2)
+  fixedAmount     Decimal? @db.Decimal(10, 2)
+  
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// CONTEXT: ACADEMY
+// ============================================
+
+model AcademyStudent {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  
+  // Datos personales
+  dateOfBirth       DateTime
+  gender            Gender
+  bloodType         String?
+  
+  // Tutor
+  tutorName         String
+  tutorPhone        String
+  tutorCi           String?
+  tutorRelation     String
+  
+  // Contacto de emergencia
+  emergencyName     String
+  emergencyPhone    String
+  emergencyRelation String
+  
+  // Estado
+  status            StudentStatus @default(ACTIVE)
+  
+  // Relaciones
+  enrollments       AcademyEnrollment[]
+  payments          AcademyPayment[]
+  attendance        AcademyAttendance[]
+  freezes           AcademyFreeze[]
+  changes           AcademyChange[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+  
+  @@index([status])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  FROZEN
+  GRADUATED
+}
+
+model AcademyPlan {
+  id              String   @id @default(uuid())
+  name            String
+  type            PlanType // REGULAR o SPECIAL
+  category        PlanCategory? // MONTHLY, BIMONTHLY, SEMESTER, INTENSIVE, SUMMER, PRIVATE, THERAPEUTIC
+  price           Decimal  @db.Decimal(10, 2)
+  durationDays    Int      // Duración en días
+  description     String?
+  sessionsCount   Int?     // Número de sesiones incluidas
+  
+  isActive        Boolean  @default(true)
+  
+  enrollments     AcademyEnrollment[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([type])
+  @@index([isActive])
+}
+
+enum PlanType {
+  REGULAR
+  SPECIAL
+}
+
+enum PlanCategory {
+  MONTHLY
+  BIMONTHLY
+  SEMESTER
+  INTENSIVE
+  SUMMER
+  PRIVATE
+  THERAPEUTIC
+}
+
+model AcademyGroup {
+  id              String   @id @default(uuid())
+  name            String
+  level           String   // Principiante, Intermedio, Avanzado
+  maxCapacity     Int
+  currentSize     Int      @default(0)
+  
+  // Horario
+  scheduleStart   String   // HH:mm formato 24h
+  scheduleEnd     String   // HH:mm formato 24h
+  daysOfWeek      String   // JSON array: [1,3,5] (Lunes, Miércoles, Viernes)
+  toleranceMinutes Int     @default(15) // Ventana de tolerancia
+  
+  // Profesor asignado (opcional)
+  professorId     String?
+  
+  isActive        Boolean  @default(true)
+  
+  enrollments     AcademyEnrollment[]
+  attendance      AcademyAttendance[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+  
+  @@index([isActive])
+  @@index([level])
+}
+
+model AcademyEnrollment {
+  id              String   @id @default(uuid())
+  studentId       String
+  groupId         String
+  planId          String
+  
+  student         AcademyStudent @relation(fields: [studentId], references: [id])
+  group           AcademyGroup   @relation(fields: [groupId], references: [id])
+  plan            AcademyPlan    @relation(fields: [planId], references: [id])
+  
+  startDate       DateTime
+  endDate         DateTime // Calculado según plan
+  expiresAt       DateTime // Fecha de vencimiento
+  
+  status          EnrollmentStatus @default(ACTIVE)
+  
+  // Pagos
+  payments        AcademyPayment[]
+  
+  // Auditoría
+  enrolledBy      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([studentId])
+  @@index([groupId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  EXPIRED
+  COMPLETED
+  CANCELLED
+  FROZEN
+}
+
+model AcademyPayment {
+  id              String   @id @default(uuid())
+  enrollmentId    String
+  enrollment      AcademyEnrollment @relation(fields: [enrollmentId], references: [id])
+  
+  amount          Decimal  @db.Decimal(10, 2)
+  originalAmount  Decimal  @db.Decimal(10, 2) // Antes de descuento
+  discountAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  discountReason  String?  // Descuento por antigüedad, hermanos, etc.
+  
+  paymentMethod   PaymentMethod
+  paymentDate     DateTime @default(now())
+  
+  shiftId         String?  // Turno donde se realizó el pago
+  receiptPdfPath  String?
+  
+  idempotencyKey  String?  @unique // Para evitar dobles cobros
+  
+  // Auditoría
+  processedBy     String
+  createdAt       DateTime @default(now())
+  
+  @@index([enrollmentId])
+  @@index([paymentDate])
+  @@index([shiftId])
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+  QR
+}
+
+model AcademyAttendance {
+  id              String   @id @default(uuid())
+  studentId       String
+  groupId         String?
+  
+  student         AcademyStudent? @relation(fields: [studentId], references: [id])
+  group           AcademyGroup?   @relation(fields: [groupId], references: [id])
+  
+  entryTime       DateTime
+  exitTime        DateTime?
+  
+  // Validación
+  isValidSchedule Boolean  @default(true)
+  validationNotes String?
+  
+  registrationType RegistrationType @default(BARCODE) // BARCODE o MANUAL
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([studentId])
+  @@index([entryTime])
+}
+
+enum RegistrationType {
+  BARCODE
+  MANUAL
+}
+
+model AcademyFreeze {
+  id              String   @id @default(uuid())
+  studentId       String
+  enrollmentId    String
+  
+  student         AcademyStudent @relation(fields: [studentId], references: [id])
+  
+  reason          String   // Licencia médica, viaje, etc.
+  startDate       DateTime
+  endDate         DateTime
+  totalDays       Int
+  consumedDays    Int      @default(0)
+  
+  status          FreezeStatus @default(ACTIVE)
+  
+  approvedBy      String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([studentId])
+  @@index([status])
+}
+
+enum FreezeStatus {
+  ACTIVE
+  EXPIRED
+  CONSUMED
+  CANCELLED
+}
+
+model AcademyChange {
+  id              String   @id @default(uuid())
+  studentId       String
+  enrollmentId    String
+  
+  student         AcademyStudent @relation(fields: [studentId], references: [id])
+  
+  changeType      ChangeType // GROUP, SCHEDULE, PLAN
+  fromValue       String   // ID o descripción del origen
+  toValue         String   // ID o descripción del destino
+  
+  proratedAmount  Decimal? @db.Decimal(10, 2)
+  creditAmount    Decimal? @db.Decimal(10, 2)
+  chargeAmount    Decimal? @db.Decimal(10, 2)
+  
+  reason          String?
+  approvedBy      String
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([studentId])
+  @@index([changeType])
+}
+
+enum ChangeType {
+  GROUP
+  SCHEDULE
+  PLAN
+}
+
+model AcademyShift {
+  id              String   @id @default(uuid())
+  
+  openingAmount   Decimal  @db.Decimal(10, 2)
+  responsibleId   String
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  
+  status          ShiftStatus @default(OPEN)
+  
+  payments        AcademyShiftPayment[]
+  withdrawals     AcademyShiftWithdrawal[]
+  
+  closingNotes    String?
+  expectedCash    Decimal? @db.Decimal(10, 2)
+  actualCash      Decimal? @db.Decimal(10, 2)
+  discrepancy     Decimal? @db.Decimal(10, 2)
+  
+  closedBy        String?
+  
+  @@index([status])
+  @@index([openedAt])
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model AcademyShiftPayment {
+  id              String   @id @default(uuid())
+  shiftId         String
+  shift           AcademyShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  
+  amount          Decimal  @db.Decimal(10, 2)
+  concept         String
+  paymentMethod   PaymentMethod
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([shiftId])
+}
+
+model AcademyShiftWithdrawal {
+  id              String   @id @default(uuid())
+  shiftId         String
+  shift           AcademyShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  
+  amount          Decimal  @db.Decimal(10, 2)
+  reason          String
+  authorizedBy    String
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([shiftId])
+}
+
+model AcademyOperationalCost {
+  id              String   @id @default(uuid())
+  
+  category        CostCategory
+  description     String
+  amount          Decimal  @db.Decimal(10, 2)
+  paymentDate     DateTime
+  dueDate         DateTime?
+  
+  paymentMethod   PaymentMethod?
+  receiptNumber   String?
+  
+  recordedBy      String
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([category])
+  @@index([paymentDate])
+}
+
+enum CostCategory {
+  WATER
+  ELECTRICITY
+  MAINTENANCE
+  CHEMICALS
+  RENT
+  SALARIES
+  OTHER
+}
+
+// ============================================
+// CONTEXT: ACCESS CONTROL
+// ============================================
+
+model AttendanceLog {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  entryTime       DateTime
+  exitTime        DateTime?
+  
+  // Contexto
+  source          LogSource @default(BARCODE) // BARCODE, MANUAL, WEB
+  context         String?  // academy, staff, visitor
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([entryTime])
+}
+
+enum LogSource {
+  BARCODE
+  MANUAL
+  WEB
+}
+
+// ============================================
+// CONTEXT: SETTINGS
+// ============================================
+
+model MessageTemplate {
+  id              String   @id @default(uuid())
+  code            String   @unique // BIRTHDAY_DAY, BIRTHDAY_WEEK, OVERDUE_REMINDER, etc.
+  name            String
+  message         String   // Con placeholders: {name}, {age}, {group}, {days}
+  isActive        Boolean  @default(true)
+  
+  previewData     Json?    // Datos de ejemplo para vista previa
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// CONTEXT: WORK SCHEDULES (Profesores/Personal)
+// ============================================
+
+model WorkBlock {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  dayOfWeek       Int      // 0-6 (Domingo-Sábado)
+  startTime       String   // HH:mm
+  endTime         String   // HH:mm
+  
+  groupId         String?  // Si es profesor, grupo asignado
+  
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([dayOfWeek])
+}
